@@ -1,0 +1,23 @@
+@'
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Datasets and outputs
+data/
+outputs/
+*.gif
+*.pt
+*.ckpt
+
+# IDE
+.vscode/
+
+# System files
+.DS_Store
+Thumbs.db
+'@ | Out-File -Encoding UTF8 .gitignore
