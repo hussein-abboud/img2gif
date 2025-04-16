@@ -17,6 +17,7 @@ imageio==2.34.0
 imageio-ffmpeg==0.4.9
 scikit-image==0.22.0
 matplotlib==3.8.4
+piq==0.7.0
 
 # Visualization and Simulation
 pygame==2.5.2
