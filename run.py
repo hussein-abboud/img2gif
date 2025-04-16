@@ -71,7 +71,7 @@ def main():
                 commit_msg = f"Auto-commit: {timestamp}"
     
             subprocess.run(["git", "commit", "-m", commit_msg], check=True)
-            subprocess.run(["git", "push", "-u", "origin", "master"], check=True)
+            subprocess.run(["git", "push", "-u", "origin", "main"], check=True)
             print("[GIT] Push successful.")
         except subprocess.CalledProcessError as e:
             print(f"[GIT ERROR] {e}")
