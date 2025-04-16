@@ -1,4 +1,5 @@
 # !filepath: src/model/trainer_regression_frame1to14.py
+# Unet
 
 import sys
 from pathlib import Path
@@ -10,31 +11,56 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from src.dataset.regression_dataset import RegressionDataset
 
+class UNetBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, 3, padding=1),
+            nn.ReLU(inplace=True)
+        )
 
-class SimpleAutoencoder(nn.Module):
+    def forward(self, x):
+        return self.block(x)
+
+class UNetAutoencoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(3, 32, 3, stride=2, padding=1),  # -> (32, 32, 32)
-            nn.ReLU(),
-            nn.Conv2d(32, 64, 3, stride=2, padding=1),  # -> (64, 16, 16)
-            nn.ReLU(),
-            nn.Conv2d(64, 128, 3, stride=2, padding=1), # -> (128, 8, 8)
-            nn.ReLU(),
-        )
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),  # -> (64, 16, 16)
-            nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1),   # -> (32, 32, 32)
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1),    # -> (3, 64, 64)
-            nn.Tanh()  # normalize output to [-1, 1]
-        )
+        # Encoder
+        self.enc1 = UNetBlock(3, 32)
+        self.pool1 = nn.MaxPool2d(2)  # 32x32
+        self.enc2 = UNetBlock(32, 64)
+        self.pool2 = nn.MaxPool2d(2)  # 16x16
+        self.enc3 = UNetBlock(64, 128)
+        self.pool3 = nn.MaxPool2d(2)  # 8x8
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.encoder(x)
-        x = self.decoder(x)
-        return x
+        # Bottleneck
+        self.bottleneck = UNetBlock(128, 256)
+
+        # Decoder
+        self.up3 = nn.ConvTranspose2d(256, 128, 2, stride=2)
+        self.dec3 = UNetBlock(256, 128)
+        self.up2 = nn.ConvTranspose2d(128, 64, 2, stride=2)
+        self.dec2 = UNetBlock(128, 64)
+        self.up1 = nn.ConvTranspose2d(64, 32, 2, stride=2)
+        self.dec1 = UNetBlock(64, 32)
+
+        self.final = nn.Conv2d(32, 3, 1)
+        self.activation = nn.Tanh()
+
+    def forward(self, x):
+        e1 = self.enc1(x)
+        e2 = self.enc2(self.pool1(e1))
+        e3 = self.enc3(self.pool2(e2))
+
+        b = self.bottleneck(self.pool3(e3))
+
+        d3 = self.dec3(torch.cat([self.up3(b), e3], dim=1))
+        d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))
+        d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))
+
+        return self.activation(self.final(d1))
 
 def train_regression(
     train_csv: Path,
@@ -52,7 +78,7 @@ def train_regression(
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size)
 
-    model = SimpleAutoencoder().to(device)
+    model = UNetAutoencoder().to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
@@ -61,8 +87,8 @@ def train_regression(
         total_loss = 0
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
-            x = x * 2 - 1  # normalize input to [-1, 1]
-            y = y * 2 - 1  # normalize target to [-1, 1]
+            x = x * 2 - 1
+            y = y * 2 - 1
 
             optimizer.zero_grad()
             out = model(x)
