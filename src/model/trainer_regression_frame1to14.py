@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
+from datetime import datetime
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -94,6 +96,9 @@ def train_regression(
     model = UNetAutoencoder().to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    
+    train_losses = []
+    val_losses = []
 
     for epoch in range(epochs):
         model.train()
@@ -112,6 +117,9 @@ def train_regression(
 
         avg_loss = total_loss / len(train_loader.dataset)
         val_loss = evaluate(model, val_loader, criterion, device)
+        
+        train_losses.append(avg_loss)
+        val_losses.append(val_loss)
 
         print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_loss:.6f} | Val Loss: {val_loss:.6f}")
 
@@ -120,6 +128,19 @@ def train_regression(
 
     torch.save(model.state_dict(), output_dir / "regression_model.pt")
     print(f"[INFO] Model saved to {output_dir / 'regression_model.pt'}")
+    
+    # Save loss history plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, epochs + 1), train_losses, label="Train Loss", linewidth=2)
+    plt.plot(range(1, epochs + 1), val_losses, label="Val Loss", linewidth=2)
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title(f"Loss History ({datetime.now().strftime('%Y-%m-%d')}) | Epochs={epochs} | Batch={batch_size} | LR={lr}")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(output_dir / "loss_history.png")
+    plt.close()
 
     test_csv = Path("data/test.csv")
     if test_csv.exists():
@@ -145,31 +166,76 @@ def evaluate(model: nn.Module, loader: DataLoader, criterion: nn.Module, device:
     return total_loss / len(loader.dataset)
 
 def save_sample_outputs(model: nn.Module, loader: DataLoader, output_dir: Path, device: str, limit: int = 8):
+    import torch
     import torchvision.utils as vutils
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     model.eval()
-    count = 0
+    samples = []
+
     with torch.no_grad():
+        count = 0
         for x, y in loader:
             x, y = x.to(device), y.to(device)
             x = x * 2 - 1
             y = y * 2 - 1
             preds = model(x)
 
-            for i in range(min(x.size(0), limit - count)):
-                vutils.save_image((x[i] + 1) / 2, output_dir / f"input_{count}.png")
-                vutils.save_image((y[i] + 1) / 2, output_dir / f"target_{count}.png")
-                vutils.save_image((preds[i] + 1) / 2, output_dir / f"predicted_{count}.png")
+            for i in range(x.size(0)):
+                samples.append((x[i], y[i], preds[i]))
                 count += 1
                 if count >= limit:
-                    return
+                    break
+            if count >= limit:
+                break
+
+    # Make output grids of 5 rows x 3 columns (input, target, predicted)
+    max_rows = 5
+    image_width = samples[0][0].shape[2]
+    image_height = samples[0][0].shape[1]
+    channels = samples[0][0].shape[0]
+
+    blank_image = torch.zeros(channels, image_height, image_width, device=device)
+
+    # Header row: simple black bars with white text is non-trivial w/o PIL, so we use uniform light gray images
+    header_text_images = {
+        "Input": torch.full_like(blank_image, 0.8),
+        "Target": torch.full_like(blank_image, 0.8),
+        "Predicted": torch.full_like(blank_image, 0.8),
+    }
+
+    def create_grid_page(samples_chunk: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]], file_index: int):
+        row_images = []
+
+        # Add header row
+        row_images.extend([header_text_images["Input"], header_text_images["Target"], header_text_images["Predicted"]])
+
+        for input_img, target_img, pred_img in samples_chunk:
+            row_images.extend([
+                (input_img + 1) / 2,
+                (target_img + 1) / 2,
+                (pred_img + 1) / 2,
+            ])
+
+        # Pad with blanks if less than 5 rows
+        rows_missing = max_rows - len(samples_chunk)
+        for _ in range(rows_missing):
+            row_images.extend([blank_image, blank_image, blank_image])
+
+        grid = vutils.make_grid([img.cpu() for img in row_images], nrow=3, padding=4)
+        vutils.save_image(grid, output_dir / f"samples_{file_index}.png")
+
+    for i in range(0, len(samples), max_rows):
+        chunk = samples[i:i + max_rows]
+        create_grid_page(chunk, file_index=i // max_rows)
+
 
 if __name__ == "__main__":
     train_regression(
         train_csv=Path("data/train.csv"),
         val_csv=Path("data/val.csv"),
-        epochs=100,
+        epochs=300,
         batch_size=32,
         lr=1e-3,
         output_dir=Path("outputs")

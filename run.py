@@ -48,7 +48,8 @@ def main():
     parser.add_argument("--git-commit", metavar="msg", help="Add, commit and push all files")
     parser.add_argument("--check-preprocessed", action="store_true", help="Check preprocessed .pt files for consistency")
     parser.add_argument("--index", action="store_true", help="Create dataset index CSV")
-    parser.add_argument("--split", action="store_true", help="Split dataset into train/val/test CSVs")
+    #parser.add_argument("--split", action="store_true", help="Split dataset into train/val/test CSVs")
+    parser.add_argument("--split", type=float, nargs="?", const=1.0, default=None, help="Split dataset into train/val/test CSVs using a fraction (e.g., 0.1 for 10%% of data). Defaults to 1.0 if used without a value.")
     parser.add_argument("--git", nargs="?", const=True, help="Stage, commit, and push changes with optional commit message")
 
 #comment
@@ -75,10 +76,10 @@ def main():
 
 
     
-    if args.split:
+    if args.split is not None:
         from src.preprocessing.split_dataset import split_dataset
-        print("[SPLIT] Creating stratified train/val/test splits...")
-        split_dataset()
+        print(f"[SPLIT] Creating stratified train/val/test splits using {args.split * 100:.0f}% of the data...")
+        split_dataset(fraction_of_data_to_be_used=args.split)
 
     
     if args.index:
