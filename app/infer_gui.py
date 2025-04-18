@@ -1,27 +1,31 @@
 #!filepath: app/infer_gui.py
+
 import sys
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional
 
 import imageio
 import torch
 from PIL import Image, ImageTk, ImageSequence
 from torchvision import transforms
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
+
 import inspect
 import logging
 
+# --------------------------------------------------------------------------- #
+# CONFIG
+# --------------------------------------------------------------------------- #
 logging.basicConfig(level=logging.INFO)
 
-# --------------------------------------------------------------------------- #
-#  CONFIG
-# --------------------------------------------------------------------------- #
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = PROJECT_ROOT / "outputs" / "sequence"
-GROUND_TRUTH_DIR = PROJECT_ROOT / "data" / "ground_truth"   # optional default
-IMG_SIZE = 64
+sys.path.append(str(PROJECT_ROOT))
+
+from src.model import models_regression_sequence
+from src.utils.project_paths import MODEL_DIR, GROUND_TRUTH_DIR, IMG_SIZE
+
 DISPLAY_SCALE = 4
 DISPLAY_FPS = 10
 MAX_FRAMES = 14
@@ -35,33 +39,22 @@ BTN_HOVER = "#2e61d2"
 CARD_BG = "#2d2d30"
 BORDER_CLR = "#3c3c41"
 
-# --------------------------------------------------------------------------- #
-#  IMPORT MODEL CLASSES
-# --------------------------------------------------------------------------- #
-sys.path.append(str(PROJECT_ROOT))
-from src.model import sequence_regressor_models   # noqa: E402
-
 
 def discover_models() -> Dict[str, Path]:
     model_classes = {
-        name: cls
-        for name, cls in inspect.getmembers(sequence_regressor_models, inspect.isclass)
+        name: cls for name, cls in inspect.getmembers(models_regression_sequence, inspect.isclass)
         if issubclass(cls, torch.nn.Module)
     }
-    files: Dict[str, Path] = {}
-    for pt in MODEL_DIR.glob("*.pt"):
-        if pt.stem in model_classes:
-            files[pt.stem] = pt
-    return files
+    return {
+        pt.stem: pt for pt in MODEL_DIR.glob("*.pt")
+        if pt.stem in model_classes
+    }
 
 
-# --------------------------------------------------------------------------- #
-#  APP
-# --------------------------------------------------------------------------- #
 class InferenceApp(tk.Frame):
     def __init__(self, master: tk.Tk):
         super().__init__(master, bg=BG)
-        master.title("GIF Predictor – Model Comparator")
+        master.title("GIF Predictor – Model Comparator")
         master.configure(bg=BG)
         master.geometry("1200x700")
 
@@ -71,23 +64,20 @@ class InferenceApp(tk.Frame):
         self.pred_sequences: Dict[str, torch.Tensor] = {}
         self.gt_sequence: Optional[List[Image.Image]] = None
         self.image_path: Optional[Path] = None
+        self.scrub_active: bool = False
 
         self._build_ui()
         self._refresh_model_sidebar()
-        self.scrub_active: bool = False  # ← add to __init__
-
 
     def _build_ui(self) -> None:
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
         self.pack(fill="both", expand=True)
 
-        self.sidebar = tk.Frame(self, padx=10, pady=10, relief="flat", bd=0, bg=SIDEBAR_BG)
+        self.sidebar = tk.Frame(self, padx=10, pady=10, bg=SIDEBAR_BG)
         self.sidebar.grid(row=0, column=0, sticky="ns")
 
-        tk.Label(self.sidebar, text="Models", font=("Segoe UI", 12, "bold"),
-                 fg=FG, bg=SIDEBAR_BG).pack(anchor="w")
-
+        tk.Label(self.sidebar, text="Models", font=("Segoe UI", 12, "bold"), fg=FG, bg=SIDEBAR_BG).pack(anchor="w")
         self.model_frame = tk.Frame(self.sidebar, bg=SIDEBAR_BG)
         self.model_frame.pack(fill="x", pady=(5, 15))
 
@@ -102,8 +92,7 @@ class InferenceApp(tk.Frame):
 
         self.slider = tk.Scale(self.sidebar, from_=0, to=MAX_FRAMES - 1, orient="horizontal",
                                label="Scrub Frame", command=self.update_display,
-                               bg=SIDEBAR_BG, fg=FG, troughcolor=BORDER_CLR,
-                               highlightthickness=0)
+                               bg=SIDEBAR_BG, fg=FG, troughcolor=BORDER_CLR, highlightthickness=0)
         self.slider.pack(fill="x")
 
         self.display_frame = tk.Frame(self, padx=10, pady=10, bg=BG)
@@ -117,17 +106,13 @@ class InferenceApp(tk.Frame):
     def _refresh_model_sidebar(self) -> None:
         for child in self.model_frame.winfo_children():
             child.destroy()
-
         for name in sorted(self.model_files.keys()):
             var = tk.BooleanVar(value=self.selected_models.get(name, False))
-
             def _toggle(n=name, v=var):
                 self.selected_models[n] = v.get()
-
-            chk = tk.Checkbutton(self.model_frame, text=name, variable=var, command=_toggle,
-                                 fg=FG, bg=SIDEBAR_BG, activebackground=SIDEBAR_BG,
-                                 selectcolor=SIDEBAR_BG, highlightthickness=0)
-            chk.pack(anchor="w")
+            tk.Checkbutton(self.model_frame, text=name, variable=var, command=_toggle,
+                           fg=FG, bg=SIDEBAR_BG, activebackground=SIDEBAR_BG,
+                           selectcolor=SIDEBAR_BG, highlightthickness=0).pack(anchor="w")
 
     def load_image(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("PNG image", "*.png")])
@@ -135,7 +120,7 @@ class InferenceApp(tk.Frame):
             self.image_path = Path(path)
             logging.info(f"Loaded input image: {path}")
             self.pred_sequences.clear()
-            self.gt_sequence = None  # ← clear old ground truth
+            self.gt_sequence = None
             self._clear_display()
 
     def load_ground_truth(self) -> None:
@@ -146,27 +131,19 @@ class InferenceApp(tk.Frame):
             frames: List[Image.Image] = []
             with Image.open(path) as gif:
                 for frm in ImageSequence.Iterator(gif):
-                    frm = frm.convert("RGB").resize(
-                        (CONTAINER_SIZE, CONTAINER_SIZE), Image.NEAREST
-                    )
+                    frm = frm.convert("RGB").resize((CONTAINER_SIZE, CONTAINER_SIZE), Image.NEAREST)
                     frames.append(frm.copy())
-    
-            # Step 1: drop frame 0
-            frames = frames[1:]
-    
-            # Step 2: pad with last frame until we reach 14
+            frames = frames[1:]  # drop frame 0
             while len(frames) < MAX_FRAMES:
                 frames.append(frames[-1].copy())
-                
-            frames = frames[:MAX_FRAMES]  # Truncate if longer
-            self.gt_sequence = frames
-            logging.info(f"Ground‑truth loaded: {len(frames)} frames (frame_1–14 aligned)")
+            self.gt_sequence = frames[:MAX_FRAMES]
+            logging.info(f"Ground-truth loaded: {len(frames)} frames (frame_1–14 aligned)")
             self._render_all()
         except Exception as e:
             messagebox.showerror("Ground‑Truth Error", f"Cannot load GIF: {e}")
 
     def run_inference(self) -> None:
-        self.scrub_active = False  # Resume animation after refresh
+        self.scrub_active = False
         if self.image_path is None:
             messagebox.showwarning("Input Missing", "Please load an image first.")
             return
@@ -178,7 +155,7 @@ class InferenceApp(tk.Frame):
         def _worker(model_name: str):
             try:
                 if model_name not in self.model_instances:
-                    cls = getattr(sequence_regressor_models, model_name)
+                    cls = getattr(models_regression_sequence, model_name)
                     state = torch.load(self.model_files[model_name], map_location="cpu")
                     net = cls()
                     net.load_state_dict(state)
@@ -215,6 +192,7 @@ class InferenceApp(tk.Frame):
         if any(t.is_alive() for t in threads):
             self.after(100, lambda: self._wait_threads_then_render(threads))
         else:
+            self._clear_display()
             self._render_all()
 
     def _clear_display(self) -> None:
@@ -223,17 +201,13 @@ class InferenceApp(tk.Frame):
 
     def _render_all(self) -> None:
         self._clear_display()
-        col = 0
-        row = 0
+        col, row = 0, 0
 
         if self.gt_sequence:
-            start = int(self.slider.get())
-            frames = self.gt_sequence[start : start + MAX_FRAMES]
-            if len(frames) < MAX_FRAMES:
-                frames += [frames[-1].copy()] * (MAX_FRAMES - len(frames))
+            frames = self.gt_sequence[int(self.slider.get()):]
+            frames = frames[:MAX_FRAMES] + [frames[-1]] * max(0, MAX_FRAMES - len(frames))
             self._add_gif_container("Ground Truth", frames, row, col)
             col += 1
-
 
         for name in sorted(self.selected_models.keys()):
             if not self.selected_models[name] or name not in self.pred_sequences:
@@ -249,29 +223,31 @@ class InferenceApp(tk.Frame):
         container = tk.Frame(self.canvas_container, bd=1, relief="solid",
                              padx=5, pady=5, bg=CARD_BG, highlightbackground=BORDER_CLR, highlightthickness=1)
         container.grid(row=r, column=c, padx=10, pady=10)
-        tk.Label(container, text=title, font=("Segoe UI", 10, "bold"),
-                 bg=CARD_BG, fg=FG).pack()
+        tk.Label(container, text=title, font=("Segoe UI", 10, "bold"), bg=CARD_BG, fg=FG).pack()
         lbl = tk.Label(container, bg=CARD_BG)
         lbl.pack()
         tk.Label(container, text=f"{len(frames)} frames", bg=CARD_BG, fg=FG).pack()
-        tk.Frame(container, height=2, bg=CARD_BG).pack()
         lbl.frames = [ImageTk.PhotoImage(f) for f in frames]
         lbl.idx = 0
 
         def _anim(label=lbl):
             if not hasattr(label, "frames"):
                 return
-            label.configure(image=label.frames[label.idx])
-            if not self.scrub_active:
-                label.idx = (label.idx + 1) % len(label.frames)
-                self.after(int(1000 / DISPLAY_FPS), _anim)
-        
-        _anim()
+            if not str(label) in label.tk.call("winfo", "children", label.master):
+                return  # <- safeguard: skip if label is destroyed
+            try:
+                label.configure(image=label.frames[label.idx])
+                if not self.scrub_active:
+                    label.idx = (label.idx + 1) % len(label.frames)
+                    self.after(int(1000 / DISPLAY_FPS), _anim)
+            except tk.TclError:
+                pass  # <- label may have been destroyed before next frame
 
+        _anim()
 
     def _tensor_to_frames(self, seq: torch.Tensor) -> List[Image.Image]:
         unnorm = transforms.Normalize(mean=[-1, -1, -1], std=[2, 2, 2])
-        frames: List[Image.Image] = []
+        frames = []
         start = int(self.slider.get())
         end = min(seq.size(0), start + MAX_FRAMES)
         for i in range(start, end):
@@ -290,11 +266,8 @@ class InferenceApp(tk.Frame):
             self._render_all()
 
 
-
-# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
     root = tk.Tk()
-    root.tk_setPalette(background=BG, foreground=FG, activeBackground=BTN_BG,
-                       activeForeground=FG)
+    root.tk_setPalette(background=BG, foreground=FG, activeBackground=BTN_BG, activeForeground=FG)
     app = InferenceApp(root)
     root.mainloop()

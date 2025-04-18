@@ -1,9 +1,17 @@
 # !filepath: src/preprocessing/check_processed.py
 
-import torch
-from pathlib import Path
+# Purpose:
+# This script verifies the integrity and consistency of all processed PyTorch tensor files in the dataset.
+# It checks whether each `.pt` file can be loaded and conforms to the expected shape. Any mismatches or
+# loading errors are reported, helping identify corrupted or improperly preprocessed files.
 
-PROCESSED_PATH = Path(__file__).resolve().parents[2] / "data" / "processed"
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
+import torch
+from src.utils.project_paths import PROCESSED_DATA_DIR as PROCESSED_PATH
+
 EXPECTED_SHAPE = (15, 3, 64, 64)
 
 def check_all(verbose: bool = False):

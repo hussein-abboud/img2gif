@@ -1,5 +1,11 @@
 # !filepath: src/preprocessing/create_dataset_index.py
 
+# Purpose:
+# This script scans through raw simulation data directories, extracts relevant metadata from JSON files,
+# checks for corresponding processed PyTorch tensor files, and compiles an index CSV file. The output
+# CSV serves as a centralized reference to locate data tensors and their labels for model training or evaluation.
+
+
 import json
 import csv
 from pathlib import Path

@@ -1,5 +1,11 @@
 # !filepath: src/dataset/classifier_dataset.py
 
+# Purpose:
+# This dataset class is designed for binary classification tasks using only the first frame of each simulation.
+# It loads the corresponding label (hit or miss) from a CSV file and returns (frame_0_tensor, label) pairs for
+# training classifiers that predict outcomes based on the initial visual input.
+
+
 import torch
 from torch.utils.data import Dataset
 from pathlib import Path

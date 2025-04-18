@@ -1,5 +1,12 @@
 #!filepath: src/losses/loss_composer.py
 
+# Purpose:
+# This module defines a flexible `LossComposer` class for combining multiple loss functions—
+# including L1 loss, gradient loss, perceptual loss (via VGG16), and SSIM. It supports configurable
+# weighting of each component and is designed for training deep learning models on video or image
+# sequence prediction tasks where both pixel accuracy and perceptual quality matter.
+
+
 from typing import Optional, Dict
 import torch
 import torch.nn as nn

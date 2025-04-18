@@ -1,5 +1,11 @@
 # !filepath: src/dataset/sequence_regression_dataset.py
 
+# Purpose:
+# This dataset class loads preprocessed tensor files and returns a tuple of (input_frame, target_sequence),
+# where the input is frame 0 and the target is frames 1 to 14. It is designed for training models that 
+# predict future frames from a single initial frame in a video sequence.
+
+
 import torch
 from torch.utils.data import Dataset
 from pathlib import Path

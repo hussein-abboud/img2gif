@@ -1,13 +1,19 @@
-#!filepath: src/preprocessing/split_dataset.py
+# !filepath: src/preprocessing/split_dataset.py
+
+# Purpose:
+# This script reads the centralized dataset index CSV and performs a stratified split into training, validation,
+# and test sets. It supports using only a fraction of the available data and ensures balanced label distribution
+# across the splits. The output CSV files are saved for downstream training and evaluation workflows.
+
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import csv
 import logging
-from pathlib import Path
 from sklearn.model_selection import train_test_split
 
-ROOT = Path(__file__).resolve().parents[2]
-INDEX_FILE = ROOT / "data" / "dataset_index.csv"
-SPLIT_DIR = ROOT / "data"
+from src.utils.project_paths import INDEX_FILE, DATA_DIR as SPLIT_DIR
 
 logging.basicConfig(level=logging.INFO)
 

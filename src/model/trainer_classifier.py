@@ -1,5 +1,24 @@
 ﻿# !filepath: src/model/trainer.py
 
+# Purpose:
+# This script trains a simple convolutional neural network (CNN) for binary classification
+# on simulated frame data. Each sample consists of the first frame of a simulation sequence
+# and a binary label indicating whether the outcome was a "hit" or "miss".
+#
+# Model Architecture:
+# - SimpleCNN: A basic CNN with two convolutional layers followed by two fully connected layers.
+# - Designed for low-resource, fast classification tasks.
+#
+# Training Workflow:
+# - Uses the `ClassifierDataset` to load (frame_0, label) pairs from .pt files and CSV metadata.
+# - Optimizes cross-entropy loss using the Adam optimizer.
+# - Evaluates accuracy on training, validation, and test sets after each epoch.
+#
+# Use Case:
+# Ideal for outcome classification models that predict from static visual input (e.g., whether an AA
+# defense will succeed or fail based on the first simulation frame). Useful as a lightweight baseline.
+
+
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
@@ -9,6 +28,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from src.dataset.classifier_dataset import ClassifierDataset
+from src.utils.project_paths import TRAIN_CSV, VAL_CSV, TEST_CSV
+
 
 class SimpleCNN(nn.Module):
     def __init__(self):
@@ -91,9 +112,9 @@ def evaluate(model: nn.Module, loader: DataLoader, device: str) -> float:
 
 if __name__ == "__main__":
     train_classifier(
-        train_csv=Path("data") / "train.csv",
-        val_csv=Path("data") / "val.csv",
-        test_csv=Path("data") / "test.csv",
+        train_csv=TRAIN_CSV,
+        val_csv=VAL_CSV,
+        test_csv=TEST_CSV,
         epochs=10,
         batch_size=32,
         lr=1e-3

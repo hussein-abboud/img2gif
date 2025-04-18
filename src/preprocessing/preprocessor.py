@@ -1,14 +1,20 @@
-﻿import os
+﻿# Purpose:
+# This script preprocesses raw simulation frame sequences by resizing, normalizing, and stacking them into
+# tensors. Each resulting tensor, representing 15 frames of a simulation, is saved as a `.pt` file in the
+# processed data directory. This enables efficient loading for training and evaluation tasks.
+
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
+import os
 import torch
 from torchvision import transforms
 from PIL import Image
-from pathlib import Path
 from itertools import islice
 
+from src.utils.project_paths import RAW_DATA_DIR as RAW_SIMULATION_PATH, PROCESSED_DATA_DIR as SAVE_PATH
 
-
-RAW_SIMULATION_PATH = Path(__file__).resolve().parents[2] / "data" / "raw"
-SAVE_PATH = Path(__file__).resolve().parents[2] / "data" / "processed"
 IMG_SIZE = 64
 
 def load_frames(frame_dir: Path) -> torch.Tensor:
@@ -28,8 +34,8 @@ def load_frames(frame_dir: Path) -> torch.Tensor:
 
 def run_preprocessor():
     SAVE_PATH.mkdir(parents=True, exist_ok=True)
-    
-    #sample_dirs = islice(RAW_SIMULATION_PATH.iterdir(), 10)  # Only first 10 dirs
+
+    # sample_dirs = islice(RAW_SIMULATION_PATH.iterdir(), 10)  # Only first 10 dirs
     sample_dirs = RAW_SIMULATION_PATH.iterdir()
     for sample_dir in sample_dirs:
         if not sample_dir.is_dir():
@@ -41,4 +47,3 @@ def run_preprocessor():
             print(f"Processed {sample_dir.name}")
         except Exception as e:
             print(f"[ERROR] Skipped {sample_dir.name}: {e}")
-

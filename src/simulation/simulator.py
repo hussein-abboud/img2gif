@@ -281,5 +281,3 @@ def run_simulation(render: bool = True):
     """
     sim = AirDefenseSimulation(render=render)
     sim.run()
-
-run_simulation()

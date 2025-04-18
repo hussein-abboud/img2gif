@@ -1,5 +1,11 @@
 # !filepath: src/dataset/regression_dataset.py
 
+# Purpose:
+# This dataset class is tailored for frame-to-frame regression tasks, where the model predicts the final
+# frame (frame_14) from the initial frame (frame_0) in a simulation sequence. It loads preprocessed tensor
+# files and provides paired tensors for supervised learning.
+
+
 import torch
 from torch.utils.data import Dataset
 from pathlib import Path

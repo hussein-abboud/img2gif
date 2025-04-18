@@ -10,6 +10,9 @@ __pycache__/
 # Datasets and outputs
 data/
 outputs/
+outputs_bck/
+outputs_singleframe/
+outputs_sequence/
 *.gif
 *.pt
 *.ckpt

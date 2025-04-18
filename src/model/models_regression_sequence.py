@@ -1,5 +1,40 @@
 # !filepath: src/model/sequence_regressor_models.py
 
+# Purpose:
+# This module defines a suite of deep learning models for future frame prediction in image sequences,
+# specifically tailored for scenarios like simulated air-defense visualizations. Each model takes a single
+# input frame and predicts the next 14 frames (output shape: B × 14 × 3 × 64 × 64).
+#
+# Models Implemented:
+#
+# 1. BaseUNetSequenceModel:
+#    - A standard U-Net architecture with no skip connections.
+#    - Lightweight and useful for fast prototyping, but may miss fine spatial details.
+#
+# 2. SkipUNetSequenceModel:
+#    - Classic U-Net with skip connections between encoder and decoder layers.
+#    - Improves spatial detail recovery by reusing high-resolution features.
+#
+# 3. LSTMUNetSequenceModel:
+#    - U-Net backbone integrated with a ConvLSTM bottleneck to model temporal dynamics.
+#    - Uses repeated hidden state propagation to simulate sequential generation.
+#
+# 4. ResLSTMUNetSequenceModelV2:
+#    - Enhances the ConvLSTM U-Net with residual bottleneck blocks.
+#    - Generates each future frame iteratively using temporal recurrence (like an RNN).
+#
+# 5. AttnUNetSequenceModelV3:
+#    - Adds a lightweight attention block after the encoder to enhance global context.
+#    - Suitable for modeling long-range spatial dependencies.
+#
+# 6. ViTUNetSequenceModelV4:
+#    - Hybrid Vision Transformer + U-Net model.
+#    - Encodes features into patches, applies transformer blocks, and decodes back using skip connections.
+#    - Captures both local detail and global context effectively.
+#
+# All models use Tanh activation on output to stay in [-1, 1] normalized pixel range. They are designed
+# to be modular, interchangeable, and usable in shared training pipelines for sequence regression tasks.
+
 
 import torch
 import torch.nn as nn
@@ -36,7 +71,7 @@ class ConvLSTMCell(nn.Module):
         h_next = o * torch.tanh(c_next)
         return h_next, c_next
 
-class simple_UNetSequenceModel(nn.Module):
+class BaseUNetSequenceModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder = nn.Sequential(
@@ -73,7 +108,7 @@ class simple_UNetSequenceModel(nn.Module):
         x = self.decoder(x)
         return x.view(-1, 14, 3, 64, 64)
 
-class ConvLSTM_UNetSequenceModel(nn.Module):
+class LSTMUNetSequenceModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.enc1 = nn.Sequential(
@@ -150,7 +185,7 @@ class ConvLSTM_UNetSequenceModel(nn.Module):
         out = self.activation(out)
         return out.view(-1, 14, 3, 64, 64)
     
-class skip_UNetSequenceModel(nn.Module):
+class SkipUNetSequenceModel(nn.Module):
     def __init__(self):
         super().__init__()
         # Encoder
@@ -254,7 +289,7 @@ class ConvLSTMCellV2(nn.Module):
         return h_new, c_new
 
 
-class ResConvLSTMUNetV2(nn.Module):
+class ResLSTMUNetSequenceModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.enc1 = nn.Sequential(
@@ -341,7 +376,7 @@ class AttentionBlockV3(nn.Module):
         return self.proj(out)
 
 
-class AttentionUNetV3(nn.Module):
+class AttnUNetSequenceModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.enc1 = nn.Sequential(
@@ -436,7 +471,7 @@ class TransformerBlockV4(nn.Module):
         return x
 
 
-class ViTUNetV4(nn.Module):
+class ViTUNetSequenceModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.enc1 = nn.Sequential(
