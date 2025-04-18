@@ -48,7 +48,6 @@ def main():
     parser.add_argument("--git-commit", metavar="msg", help="Add, commit and push all files")
     parser.add_argument("--check-preprocessed", action="store_true", help="Check preprocessed .pt files for consistency")
     parser.add_argument("--index", action="store_true", help="Create dataset index CSV")
-    #parser.add_argument("--split", action="store_true", help="Split dataset into train/val/test CSVs")
     parser.add_argument("--split", type=float, nargs="?", const=1.0, default=None, help="Split dataset into train/val/test CSVs using a fraction (e.g., 0.1 for 10%% of data). Defaults to 1.0 if used without a value.")
     parser.add_argument("--git", nargs="?", const=True, help="Stage, commit, and push changes with optional commit message")
 
@@ -73,7 +72,6 @@ def main():
             print("[GIT] Push successful.")
         except subprocess.CalledProcessError as e:
             print(f"[GIT ERROR] {e}")
-
 
     
     if args.split is not None:

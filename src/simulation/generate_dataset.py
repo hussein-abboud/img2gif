@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-def run_and_capture_simulation(n_runs: int = 5000):
+def run_and_capture_simulation(n_runs: int = 15000):
     """
     Run n_runs air defense simulations headlessly.
     Save each run's 15 frames, .gif, and metadata.json to /data/simulations/run_xxxx/
@@ -69,4 +69,4 @@ def run_and_capture_simulation(n_runs: int = 5000):
 
 
 if __name__ == "__main__":
-    run_and_capture_simulation(n_runs=5000)
+    run_and_capture_simulation(n_runs=15000)
